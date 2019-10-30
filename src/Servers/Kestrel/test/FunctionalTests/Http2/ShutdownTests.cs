@@ -15,7 +15,6 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.AspNetCore.Testing;
-using Microsoft.AspNetCore.Testing.xunit;
 using Microsoft.Extensions.Logging.Testing;
 using Moq;
 using Xunit;
@@ -45,7 +44,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests.Http2
 
         [CollectDump]
         [ConditionalFact]
-        [SkipOnHelix("https://github.com/aspnet/AspNetCore/issues/9985", Queues = "Fedora.28.Amd64.Open")] // https://github.com/aspnet/AspNetCore/issues/9985
+        [SkipOnHelix("https://github.com/aspnet/AspNetCore/issues/9985", Queues = "Fedora.28.Amd64.Open")]
         [Flaky("https://github.com/aspnet/AspNetCore/issues/9985", FlakyOn.All)]
         public async Task GracefulShutdownWaitsForRequestsToFinish()
         {
@@ -60,7 +59,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests.Http2
                 .Setup(m => m.Http2ConnectionClosing(It.IsAny<string>()))
                 .Callback(() => requestStopping.SetResult(null));
 
-            var testContext = new TestServiceContext(LoggerFactory, mockKestrelTrace.Object) { ExpectedConnectionMiddlewareCount = 1 };
+            var testContext = new TestServiceContext(LoggerFactory, mockKestrelTrace.Object);
 
             testContext.InitializeHeartbeat();
 
@@ -96,12 +95,13 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests.Http2
                 await stopTask.DefaultTimeout();
             }
 
-            Assert.Contains(TestApplicationErrorLogger.Messages, m => m.Message.Contains("Request finished in"));
+            Assert.Contains(TestApplicationErrorLogger.Messages, m => m.Message.Contains("Request finished "));
             Assert.Contains(TestApplicationErrorLogger.Messages, m => m.Message.Contains("is closing."));
             Assert.Contains(TestApplicationErrorLogger.Messages, m => m.Message.Contains("is closed. The last processed stream ID was 1."));
         }
 
         [ConditionalFact]
+        [Flaky("https://github.com/aspnet/AspNetCore-Internal/issues/2667", FlakyOn.All)]
         public async Task GracefulTurnsAbortiveIfRequestsDoNotFinish()
         {
             var requestStarted = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,8 +111,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.FunctionalTests.Http2
 
             var testContext = new TestServiceContext(LoggerFactory)
             {
-                MemoryPoolFactory = memoryPoolFactory.Create,
-                ExpectedConnectionMiddlewareCount = 1
+                MemoryPoolFactory = memoryPoolFactory.Create
             };
 
             TestApplicationErrorLogger.ThrowOnUngracefulShutdown = false;

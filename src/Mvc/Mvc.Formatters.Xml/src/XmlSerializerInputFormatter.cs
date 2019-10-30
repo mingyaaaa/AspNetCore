@@ -99,6 +99,8 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
 
             var request = context.HttpContext.Request;
             Stream readStream = new NonDisposableStream(request.Body);
+            var disposeReadStream = false;
+
             if (!request.Body.CanSeek && !_options.SuppressInputFormatterBuffering)
             {
                 // XmlSerializer does synchronous reads. In order to avoid blocking on the stream, we asynchronously
@@ -115,12 +117,13 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
 
                 await readStream.DrainAsync(CancellationToken.None);
                 readStream.Seek(0L, SeekOrigin.Begin);
+                disposeReadStream = true;
             }
 
             try
             {
-                using var xmlReader = CreateXmlReader(readStream, encoding);
-                var type = GetSerializableType(context.ModelType);
+                var type = GetSerializableType(context.ModelType);                
+                using var xmlReader = CreateXmlReader(readStream, encoding, type);
 
                 var serializer = GetCachedSerializer(type);
 
@@ -155,9 +158,9 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
             }
             finally
             {
-                if (readStream is FileBufferingReadStream fileBufferingReadStream)
+                if (disposeReadStream)
                 {
-                    await fileBufferingReadStream.DisposeAsync();
+                    await readStream.DisposeAsync();
                 }
             }
         }
@@ -189,6 +192,18 @@ namespace Microsoft.AspNetCore.Mvc.Formatters
                                                     new WrapperProviderContext(declaredType, isSerialization: false));
 
             return wrapperProvider?.WrappingType ?? declaredType;
+        }
+
+        /// <summary>
+        /// Called during deserialization to get the <see cref="XmlReader"/>.
+        /// </summary>
+        /// <param name="readStream">The <see cref="Stream"/> from which to read.</param>
+        /// <param name="encoding">The <see cref="Encoding"/> used to read the stream.</param>
+        /// <param name="type">The <see cref="Type"/> that is to be deserialized.</param>
+        /// <returns>The <see cref="XmlReader"/> used during deserialization.</returns>
+        protected virtual XmlReader CreateXmlReader(Stream readStream, Encoding encoding, Type type)
+        {
+            return CreateXmlReader(readStream, encoding);
         }
 
         /// <summary>
